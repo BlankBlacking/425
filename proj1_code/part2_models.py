@@ -51,9 +51,18 @@ class HybridImageModel(nn.Module):
         ############################
         ### TODO: YOUR CODE HERE ###
 
-        raise NotImplementedError(
-            "`get_kernel` function in `part2_models.py` needs to be implemented"
-        )
+        # 调用 Part1 的函数生成 2D 高斯核
+        kernel_2d = create_Gaussian_kernel_2D(cutoff_frequency)
+        k = kernel_2d.shape[0]# 获取核的尺寸
+
+        # 使用 np.reshape 改变维度为 (1, 1, k, k)因为PyTorch 的 F.conv2d 要求卷积核的形状为 (输出通道, 每个组的输入通道, 高, 宽)
+        kernel_reshaped = np.reshape(kernel_2d, (1, 1, k, k))
+
+        # 使用 np.tile 沿着通道维度(第0维)复制 self.n_channels 次，变为 (c, 1, k, k)：需要 3 个独立的滤波器（输出通道=3），每个滤波器只负责看 1 种颜色（输入通道/groups=1），它们的大小是 k×k
+        kernel_tiled = np.tile(kernel_reshaped, (self.n_channels, 1, 1, 1))#参数1意味着该参量保持不变，n意味着复制n份
+
+        # 使用 torch.Tensor() 转换为 PyTorch 的 Tensor
+        kernel = torch.Tensor(kernel_tiled)
 
         ### END OF STUDENT CODE ####
         ############################
@@ -82,9 +91,13 @@ class HybridImageModel(nn.Module):
         ############################
         ### TODO: YOUR CODE HERE ###
 
-        raise NotImplementedError(
-            "`low_pass` function in `part2_models.py` needs to be implemented"
-        )
+        # 计算需要的 padding 大小 (滤波器尺寸的一半)
+        # 此时 kernel 的 shape 是 (c, 1, k, k)，所以取最后一个维度即可
+        pad_size = kernel.shape[-1] // 2
+
+        # 调用 F.conv2d。注意：必须传入 groups=self.n_channels
+        # 这是为了确保 RGB 三个通道分别与自己的滤波层卷积，而不发生颜色交叉混合
+        filtered_image = F.conv2d(x, kernel, padding=pad_size, groups=self.n_channels)#加上 groups=3会把输入的 3 层通道（颜色通道）拆成 3 个独立的单层图
 
         ### END OF STUDENT CODE ####
         ############################
@@ -124,9 +137,21 @@ class HybridImageModel(nn.Module):
         ############################
         ### TODO: YOUR CODE HERE ###
 
-        raise NotImplementedError(
-            "`forward` function in `part2_models.py` needs to be implemented"
-        )
+        # DataLoader（数据加载器）打包后，原本的一个普通数字（比如 7）会被包装成一个张量（Tensor）
+        # .item()提取出标量值用于生成 kernel，把张量里包裹的唯一数字“剥”出来，变成普通的 Python 数字
+        cf = int(cutoff_frequency[0].item()) if cutoff_frequency.dim() > 0 else int(cutoff_frequency.item())
+
+        # 获取处理好的四维卷积核，并.to确保它和输入的图像在同一个设备上 (CPU 或 GPU)否则会报错（PyTorch中张量必须在同一设备上运算）
+        kernel = self.get_kernel(cf).to(image1.device)
+
+        # 求 image1 的低频图像
+        low_frequencies = self.low_pass(image1, kernel)
+
+        # 求 image2 的高频图像 (原图2 减去 图2的低频部分)
+        high_frequencies = image2 - self.low_pass(image2, kernel)
+
+        # 将高频和低频混合，并使用 torch.clamp 进行 [0.0, 1.0] 的截断操作
+        hybrid_image = torch.clamp(low_frequencies + high_frequencies, 0.0, 1.0)
 
         ### END OF STUDENT CODE ####
         ############################
