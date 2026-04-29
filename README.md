@@ -1,3 +1,4 @@
+<meta name="robots" content="noindex, nofollow">
 # Computer Vision project 1: Convolution and Hybrid Images
 
 # Setup
