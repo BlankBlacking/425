@@ -34,10 +34,15 @@ def my_conv2d_pytorch(image: torch.Tensor, kernel: torch.Tensor) -> torch.Tensor
 
     ############################
     ### TODO: YOUR CODE HERE ###
-
-    raise NotImplementedError(
-        "`my_conv2d_pytorch` function in `part3.py` needs to be implemented"
-    )
+    #image: Tensor of shape (1本次运算所处理图片数量, d1输入通道数, h1, w1)
+    #kernel: Tensor of shape (N输出通道数（输出几层图）, d1/groups每个滤波器负责的输入通道数, k, k)
+    # 因为groups=d1,使用了深度可分离卷积，所以每个滤波器只负责看 1 个输入通道（颜色通道），输出一个单层图。最终输出的图层数等于滤波器的数量 N。
+    in_channels = image.shape[1]
+    
+    pad_size = kernel.shape[2] // 2#计算填充尺寸
+    
+    # 调用强大的 PyTorch 底层卷积算子 F.conv2d
+    filtered_image = F.conv2d(image, kernel, padding=pad_size, groups=in_channels)
 
     ### END OF STUDENT CODE ####
     ############################
